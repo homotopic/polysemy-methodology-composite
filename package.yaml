@@ -1,0 +1,26 @@
+name:                polysemy-methodology-composite
+version:             0.1.0.0
+git:                 https://gitlab.com/homotopic-tech/polysemy-methodology-composite
+license:             MIT
+author:              "Daniel Firth"
+maintainer:          "dan.firth@homotopic.tech"
+copyright:           "dan.firth@homotopic.tech"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+synopsis:            Functions for using polysemy-methodology with composite.
+category:            Polysemy Vinyl Composite
+
+dependencies:
+- base >= 4.7 && < 5
+- composite-base
+- polysemy
+- polysemy-extra >= 0.1.1.0
+- polysemy-methodology >= 0.1.6.0
+- polysemy-vinyl >= 0.1.2.0
+- vinyl
+
+library:
+  source-dirs: src
