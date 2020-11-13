@@ -1,5 +1,9 @@
 # Changelog for polysemy-composite
 
+## v0.1.2.0
+
+* Inline fix.
+
 ## v0.1.1.0
 
 * Add `runInputCase'`.
