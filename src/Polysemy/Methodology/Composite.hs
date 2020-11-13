@@ -103,3 +103,4 @@ runInputCase' :: forall b f t r a.
               -> Sem (Input (Case' f t b) ': r) a
               -> Sem r a
 runInputCase' f = runInputConst (Case' f)
+{-# INLINE runInputCase' #-}
