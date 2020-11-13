@@ -21,6 +21,7 @@ module Polysemy.Methodology.Composite (
 , runCoRecMethodologyAsCases'
 , diffractMethodology
 , diffractMethodology'
+, runInputCase'
 ) where
 
 import Control.Arrow
@@ -93,3 +94,12 @@ diffractMethodology' = cutMethodology' @b @[CoRec f zs] @d
                    >>> reinterpretUnder mconcatMethodology'
                    >>> reinterpretUnder runCoRecMethodologyAsCases'
 {-# INLINE diffractMethodology' #-}
+
+-- | Run a `Case'` using `runInputConst` and a function eliminating the `Case'`.
+--
+-- @since 0.1.1.0
+runInputCase' :: forall b f t r a.
+                 (f b -> t)
+              -> Sem (Input (Case' f t b) ': r) a
+              -> Sem r a
+runInputCase' f = runInputConst (Case' f)
