@@ -22,11 +22,22 @@ module Polysemy.Methodology.Composite (
 , diffractMethodology
 , diffractMethodology'
 , runInputCase'
+, separateRecInitial
+, separateRecInitial'
+, stripRecInitial
+, endRecInitial
+, runRecInitialAsInputCompose
+, runRecInitialAsInputCompose'
+, separateRecTerminal
+, separateRecTerminal'
+, stripRecTerminal
+, endRecTerminal
 ) where
 
 import Control.Arrow
 import Composite.CoRecord
 import Data.Vinyl
+import Data.Vinyl.Functor
 import Polysemy
 import Polysemy.Extra
 import Polysemy.Input
@@ -104,3 +115,132 @@ runInputCase' :: forall b f t r a.
               -> Sem r a
 runInputCase' f = runInputConst (Case' f)
 {-# INLINE runInputCase' #-}
+
+-- | Factor a `Methodology` with a `Rec` in the result by a `Methodology` to the first variable.
+--
+-- @since 0.1.3.0
+separateRecInitial :: forall b f x xs r a.
+                      Members '[Methodology b (f x), Methodology b (Rec f xs)] r
+                   => Sem (Methodology b (Rec f (x ': xs)) ': r) a
+                      -- ^ The Methodology to decompose.
+                   -> Sem r a
+separateRecInitial = interpret \case
+  Process b -> do
+    k   <- process @b @(f x) b
+    k'  <- process @b @(Rec f xs) b
+    return $ k :& k'
+{-# INLINE separateRecInitial #-}
+
+-- | Reinterpreting version of `separateRecInitial`. This assumes you want to handle
+-- the separated case first.
+--
+-- @since 0.1.3.0
+separateRecInitial' :: forall b f x xs r a.
+                       Sem (Methodology b (Rec f (x ': xs)) ': r) a
+                    -> Sem (Methodology b (f x) ': Methodology b (Rec f xs)': r) a
+separateRecInitial' = reinterpret2 \case
+  Process b -> do
+    k   <- process @b @(f x) b
+    k'  <- raise $ process @b @(Rec f xs) b
+    return $ k :& k'
+{-# INLINE separateRecInitial' #-}
+
+-- | Like `separateRecInitial`, but reinterprets the rest of the `Rec` whilst pushing
+-- the separated `Methodology` into the stack. Useful for exhausting the `Rec` and
+-- dealing with the cases later.
+--
+-- @since 0.1.3.0
+stripRecInitial :: forall b f x xs r a.
+                   Members '[Methodology b (f x)] (Methodology b (Rec f xs) ': r)
+                => Sem (Methodology b (Rec f (x ': xs)) ': r) a
+                -> Sem (Methodology b (Rec f xs)': r) a
+stripRecInitial = reinterpret \case
+  Process b -> do
+    k   <- process @b @(f x) b
+    k'  <- process @b @(Rec f xs) b
+    return $ k :& k'
+{-# INLINE stripRecInitial #-}
+
+-- | Discard a depleted `Methodology` into a `Rec` by returning `RNil`.
+--
+-- @since 0.1.3.0
+endRecInitial :: Sem (Methodology b (Rec f '[]) ': r) a -> Sem r a
+endRecInitial = interpret \case
+  Process _ -> return RNil
+{-# INLINE endRecInitial #-}
+
+-- | Run a `Methodology` into a `Rec` as an `Input` over a `(->)` functor.
+--
+-- @since 0.1.3.0
+runRecInitialAsInputCompose :: forall b f xs r a. (RMap xs,
+                               Members '[ Input (Rec (Compose ((->) b) f) xs)] r)
+                            => Sem (Methodology b (Rec f xs) ': r) a
+                            -> Sem r a
+runRecInitialAsInputCompose = interpret \case
+  Process b -> do
+    z <- input @(Rec (Compose ((->) b) f) xs)
+    return $ rmap (($ b) . getCompose) z
+{-# INLINE runRecInitialAsInputCompose #-}
+
+-- | Reinterpreting version of `runRecInitialAsInputCompose`.
+--
+-- @since 0.1.3.0
+runRecInitialAsInputCompose' :: forall b f xs r a. (RMap xs)
+                             => Sem (Methodology b (Rec f xs) ': r) a
+                             -> Sem (Input (Rec (Compose ((->) b) f) xs) ': r) a
+runRecInitialAsInputCompose' = reinterpret \case
+  Process b -> do
+    z <- input @(Rec (Compose ((->) b) f) xs)
+    return $ rmap (($ b) . getCompose) z
+{-# INLINE runRecInitialAsInputCompose' #-}
+
+-- | Factor a `Methodology` from a `Rec` by a `Methodology` from the first variable.
+--
+-- since @0.1.3.0
+separateRecTerminal :: forall x c f xs r a. (Monoid c,
+                       Members '[Methodology (f x) c, Methodology (Rec f xs) c] r)
+                    => Sem (Methodology (Rec f (x ': xs)) c ': r) a
+                    -> Sem r a
+separateRecTerminal = interpret \case
+  Process (b :& bs) -> do
+    k   <- process @(f x) b
+    k'  <- process @(Rec f xs) @c bs
+    return $ k <> k'
+{-# INLINE separateRecTerminal #-}
+
+-- | Reinterpreted version of `separateRecTerminal`.
+--
+-- since @0.1.3.0
+separateRecTerminal' :: forall x c f xs r a. Monoid c
+                     => Sem (Methodology (Rec f (x ': xs)) c ': r) a
+                     -> Sem (Methodology (f x) c ': Methodology (Rec f xs) c ': r) a
+separateRecTerminal' = reinterpret2 \case
+  Process (b :& bs) -> do
+    k   <- process @(f x) b
+    k'  <- raise $ process @(Rec f xs) @c bs
+    return $ k <> k'
+{-# INLINE separateRecTerminal' #-}
+
+-- | Like `separateRecTerminal, but reinterprets the rest of the `Rec` whilst pushing
+-- the separated `Methodology` into the stack. Useful for exhausting the `Rec` and
+-- dealing with the cases later.
+--
+-- since @0.1.3.0
+stripRecTerminal :: forall x c f xs r a. (Monoid c,
+                    Members '[Methodology (f x) c] (Methodology (Rec f xs) c ': r))
+                 => Sem (Methodology (Rec f (x ': xs)) c ': r) a
+                 -> Sem (Methodology (Rec f xs) c ': r) a
+stripRecTerminal = reinterpret \case
+  Process (b :& bs) -> do
+    k   <- process @(f x) b
+    k'  <- process @(Rec f xs) @c bs
+    return $ k <> k'
+{-# INLINE stripRecTerminal #-}
+
+-- | Discard a depleted `Methodology` fom a `Rec` by returning `mempty`.
+--
+-- @since 0.1.3.0
+endRecTerminal :: Monoid b => Sem (Methodology (Rec f '[]) b ': r) a -> Sem r a
+endRecTerminal = interpret \case
+  Process _ -> return mempty
+{-# INLINE endRecTerminal #-}
