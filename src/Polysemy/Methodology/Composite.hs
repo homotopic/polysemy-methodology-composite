@@ -13,15 +13,18 @@ Functions for combining polysemy-methodology with composite.
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE PolyKinds           #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
 module Polysemy.Methodology.Composite (
-  runCoRecMethodologyAsCases
+  runMethodologyRmap
+, runCoRecMethodologyAsCases
 , runCoRecMethodologyAsCases'
 , diffractMethodology
 , diffractMethodology'
 , runInputCase'
+, pickCoRecConstructor
 , separateRecInitial
 , separateRecInitial'
 , stripRecInitial
@@ -32,6 +35,8 @@ module Polysemy.Methodology.Composite (
 , separateRecTerminal'
 , stripRecTerminal
 , endRecTerminal
+, fmapCMethodology
+, fmapCMethodology'
 ) where
 
 import Control.Arrow
@@ -42,6 +47,17 @@ import Polysemy
 import Polysemy.Extra
 import Polysemy.Input
 import Polysemy.Methodology
+
+-- | Run a `Methodology` between two `Rec`s according to a natural transformation
+-- between the interpretation functors.
+--
+-- @since 0.1.4.0
+runMethodologyRmap :: forall f g xs r a. RMap xs =>
+                      (forall y. f y -> g y)
+                   -> Sem (Methodology (Rec f xs) (Rec g xs) ': r) a
+                   -> Sem r a
+runMethodologyRmap f = runMethodologyPure (rmap f)
+{-# INLINE runMethodologyRmap #-}
 
 -- | Run a `Methodology` from a `CoRec` to an `Input` of `Cases'`. You can then use `Polysemy.Vinyl.separateRecInput` and `Polysemy.Vinyl.stripRecInput`
 -- to deal with the cases individually.
@@ -115,6 +131,17 @@ runInputCase' :: forall b f t r a.
               -> Sem r a
 runInputCase' f = runInputConst (Case' f)
 {-# INLINE runInputCase' #-}
+
+-- | Take a `Methodology` into a `CoRec` and choose a constructor.
+--
+-- @since 0.1.4.0
+pickCoRecConstructor :: forall x f b xs r a. x ∈ xs =>
+                        Sem (Methodology b (CoRec f xs) ': r) a
+                     -> Sem (Methodology b (f x) ': r) a
+pickCoRecConstructor = cutMethodology'
+                   >>> rotateEffects2
+                   >>> runMethodologyPure CoVal
+{-# INLINE pickCoRecConstructor #-}
 
 -- | Factor a `Methodology` with a `Rec` in the result by a `Methodology` to the first variable.
 --
@@ -244,3 +271,24 @@ endRecTerminal :: Monoid b => Sem (Methodology (Rec f '[]) b ': r) a -> Sem r a
 endRecTerminal = interpret \case
   Process _ -> return mempty
 {-# INLINE endRecTerminal #-}
+
+-- | Like `fmapMethodology`, but used with a `Compose`d functor to strip the top
+-- layer from the functor.
+--
+-- @since 0.1.4.0
+fmapCMethodology :: forall f g h b c r a. Traversable f =>
+                     Sem (Methodology ((f :. g) b) ((f :. h) c) ': r) a
+                  -> Sem (Methodology (g b) (h c) ': r) a
+fmapCMethodology = reinterpret \case
+  Process b -> Compose <$> traverse (process @(g b) @(h c)) (getCompose b)
+{-# INLINE fmapCMethodology #-}
+
+-- | Reinterpreting version of `fmapCMethodology`.
+--
+-- @since 0.1.4.0
+fmapCMethodology' :: forall f g h b c r a. Traversable f =>
+                     Sem (Methodology ((f :. g) b) ((f :. h) c) ': r) a
+                  -> Sem (Methodology (g b) (h c) ': r) a
+fmapCMethodology' = reinterpret \case
+  Process b -> Compose <$> traverse (process @(g b) @(h c)) (getCompose b)
+{-# INLINE fmapCMethodology' #-}

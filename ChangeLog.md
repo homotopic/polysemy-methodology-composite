@@ -1,5 +1,9 @@
 # Changelog for polysemy-composite
 
+## v0.1.4.0
+
+* Add `runMethodologyRMap`, `pickCoRecConstructor`, `fmapCMethodology`.
+
 ## v0.1.3.0
 
 * Add `separateRecInitial`, `stripRecInitial`, `stripRecInitial`, `endRecInitial`.
